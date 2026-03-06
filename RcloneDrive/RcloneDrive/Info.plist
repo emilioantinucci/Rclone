@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>RcloneDrive</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.rclonedrive.app</string>
+    <key>CFBundleName</key>
+    <string>RcloneDrive</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+
+    <!-- MSAL URL Scheme for redirect -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>msauth.com.rclonedrive.app</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- Allow MSAL to query Microsoft Authenticator -->
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>msauthv2</string>
+        <string>msauthv3</string>
+    </array>
+
+    <!-- Photo Library Access -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>RcloneDrive needs access to your photo library to backup photos and videos to OneDrive.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>RcloneDrive needs access to save downloaded photos and videos to your library.</string>
+
+    <!-- Background Tasks -->
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.rclonedrive.app.sync</string>
+        <string>com.rclonedrive.app.photobackup</string>
+    </array>
+
+    <!-- Keychain Sharing for MSAL token cache -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>com.microsoft.adalcache</string>
+    </array>
+</dict>
+</plist>
