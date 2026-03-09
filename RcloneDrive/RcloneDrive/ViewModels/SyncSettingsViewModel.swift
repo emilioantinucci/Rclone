@@ -51,8 +51,9 @@ final class SyncSettingsViewModel: ObservableObject {
 
     func removeSyncFolder(_ config: SyncConfiguration) {
         let context = ModelContext(modelContainer)
+        let configId = config.id
         if let toDelete = try? context.fetch(
-            FetchDescriptor<SyncConfiguration>(predicate: #Predicate { $0.id == config.id })
+            FetchDescriptor<SyncConfiguration>(predicate: #Predicate { $0.id == configId })
         ).first {
             context.delete(toDelete)
             try? context.save()
@@ -62,8 +63,9 @@ final class SyncSettingsViewModel: ObservableObject {
 
     func toggleSync(_ config: SyncConfiguration) {
         let context = ModelContext(modelContainer)
+        let configId = config.id
         if let toUpdate = try? context.fetch(
-            FetchDescriptor<SyncConfiguration>(predicate: #Predicate { $0.id == config.id })
+            FetchDescriptor<SyncConfiguration>(predicate: #Predicate { $0.id == configId })
         ).first {
             toUpdate.isEnabled.toggle()
             try? context.save()
