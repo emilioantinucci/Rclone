@@ -37,6 +37,7 @@ struct LoginView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 32)
             }
 
@@ -52,6 +53,8 @@ struct LoginView: View {
                     Image(systemName: "person.badge.key.fill")
                     Text("Sign in with Microsoft")
                         .fontWeight(.semibold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()

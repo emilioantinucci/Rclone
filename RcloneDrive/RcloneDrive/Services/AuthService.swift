@@ -39,13 +39,15 @@ final class AuthService: ObservableObject {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = body.data(using: .utf8)
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
 
         guard let dc = json["device_code"] as? String,
               let uc = json["user_code"] as? String,
               let url = json["verification_uri"] as? String else {
-            throw AuthError.deviceCodeFailed
+            let httpStatus = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let errorDesc = json["error_description"] as? String ?? json["error"] as? String ?? "Unknown error"
+            throw AuthError.deviceCodeFailedDetail("HTTP \(httpStatus): \(errorDesc)")
         }
 
         deviceCode = dc
@@ -275,6 +277,7 @@ final class AuthService: ObservableObject {
 enum AuthError: LocalizedError {
     case notAuthenticated
     case deviceCodeFailed
+    case deviceCodeFailedDetail(String)
     case pollingExpired
     case unknown
 
@@ -282,6 +285,7 @@ enum AuthError: LocalizedError {
         switch self {
         case .notAuthenticated: return "Not authenticated. Please sign in."
         case .deviceCodeFailed: return "Failed to get device code from Microsoft."
+        case .deviceCodeFailedDetail(let detail): return "Device code error: \(detail)"
         case .pollingExpired: return "Sign-in timed out. Please try again."
         case .unknown: return "An unknown authentication error occurred."
         }
