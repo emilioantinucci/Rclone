@@ -15,27 +15,12 @@ final class AuthViewModel: ObservableObject {
         errorMessage = nil
         Task {
             do {
-                try await authService.requestDeviceCode()
+                try await authService.signIn()
+            } catch let error as NSError where error.domain == "com.apple.AuthenticationServices.WebAuthenticationSession" && error.code == 1 {
+                // User cancelled — not an error
             } catch {
                 errorMessage = error.localizedDescription
             }
-        }
-    }
-
-    func cancel() {
-        authService.cancelDeviceCodeFlow()
-    }
-
-    func copyCode() {
-        if let code = authService.userCode {
-            UIPasteboard.general.string = code
-        }
-    }
-
-    func openVerificationURL() {
-        if let urlString = authService.verificationURL,
-           let url = URL(string: urlString) {
-            UIApplication.shared.open(url)
         }
     }
 }

@@ -1,26 +1,26 @@
 import Foundation
+import AuthenticationServices
 import Security
+import CryptoKit
 
-/// Authentication service using OAuth2 Device Code Flow (same as rclone).
-/// No MSAL dependency needed — talks directly to Microsoft's OAuth2 endpoints.
+/// Authentication service using OAuth2 Authorization Code Flow with PKCE.
+/// Uses ASWebAuthenticationSession for the browser-based sign-in.
 @MainActor
-final class AuthService: ObservableObject {
+final class AuthService: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
     @Published var isAuthenticated = false
     @Published var userDisplayName: String?
     @Published var userEmail: String?
-
-    // Device code flow state
-    @Published var deviceCode: String?
-    @Published var userCode: String?
-    @Published var verificationURL: String?
-    @Published var isPolling = false
+    @Published var isSigningIn = false
 
     private var accessToken: String?
     private var refreshToken: String?
     private var tokenExpiry: Date?
-    private var pollingTask: Task<Void, Never>?
 
-    init() {
+    // PKCE
+    private var codeVerifier: String?
+
+    override init() {
+        super.init()
         loadTokensFromKeychain()
         if refreshToken != nil {
             isAuthenticated = true
@@ -28,13 +28,77 @@ final class AuthService: ObservableObject {
         }
     }
 
-    // MARK: - Device Code Flow
+    // MARK: - ASWebAuthenticationPresentationContextProviding
 
-    /// Step 1: Request a device code from Microsoft
-    func requestDeviceCode() async throws {
-        let body = "client_id=\(Constants.clientID)&scope=\(Constants.scopeString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+    nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        MainActor.assumeIsolated {
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+        }
+    }
 
-        var request = URLRequest(url: URL(string: Constants.deviceCodeURL)!)
+    // MARK: - Authorization Code Flow with PKCE
+
+    func signIn() async throws {
+        isSigningIn = true
+        defer { isSigningIn = false }
+
+        // Generate PKCE code verifier and challenge
+        let verifier = generateCodeVerifier()
+        codeVerifier = verifier
+        let challenge = generateCodeChallenge(from: verifier)
+
+        // Build authorization URL
+        let redirectURI = Constants.redirectURI
+        let scope = Constants.scopeString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let authURL = URL(string: "\(Constants.authority)/oauth2/v2.0/authorize?client_id=\(Constants.clientID)&response_type=code&redirect_uri=\(redirectURI.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&scope=\(scope)&code_challenge=\(challenge)&code_challenge_method=S256")!
+
+        // Present browser for sign-in
+        let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            let session = ASWebAuthenticationSession(
+                url: authURL,
+                callbackURLScheme: Constants.callbackScheme
+            ) { url, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let url = url {
+                    continuation.resume(returning: url)
+                } else {
+                    continuation.resume(throwing: AuthError.unknown)
+                }
+            }
+            session.presentationContextProvider = self
+            session.prefersEphemeralWebBrowserSession = false
+            session.start()
+        }
+
+        // Extract authorization code from callback URL
+        guard let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
+              let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+            throw AuthError.noAuthCode
+        }
+
+        // Exchange code for tokens
+        try await exchangeCodeForTokens(code: code, redirectURI: redirectURI)
+        isAuthenticated = true
+        fetchUserProfile()
+    }
+
+    private func exchangeCodeForTokens(code: String, redirectURI: String) async throws {
+        guard let verifier = codeVerifier else { throw AuthError.unknown }
+
+        let body = [
+            "grant_type=authorization_code",
+            "client_id=\(Constants.clientID)",
+            "code=\(code)",
+            "redirect_uri=\(redirectURI.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")",
+            "code_verifier=\(verifier)",
+            "scope=\(Constants.scopeString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+        ].joined(separator: "&")
+
+        var request = URLRequest(url: URL(string: Constants.tokenURL)!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = body.data(using: .utf8)
@@ -42,87 +106,39 @@ final class AuthService: ObservableObject {
         let (data, response) = try await URLSession.shared.data(for: request)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
 
-        guard let dc = json["device_code"] as? String,
-              let uc = json["user_code"] as? String,
-              let url = json["verification_uri"] as? String else {
-            let httpStatus = (response as? HTTPURLResponse)?.statusCode ?? -1
-            let errorDesc = json["error_description"] as? String ?? json["error"] as? String ?? "Unknown error"
-            throw AuthError.deviceCodeFailedDetail("HTTP \(httpStatus): \(errorDesc)")
-        }
-
-        deviceCode = dc
-        userCode = uc
-        verificationURL = url
-
-        // Start polling for token
-        startPolling(interval: json["interval"] as? Int ?? 5)
-    }
-
-    /// Step 2: Poll Microsoft for token (user is entering code in browser)
-    private func startPolling(interval: Int) {
-        isPolling = true
-        pollingTask?.cancel()
-
-        pollingTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
-                if Task.isCancelled { break }
-
-                do {
-                    let success = try await pollForToken()
-                    if success {
-                        isPolling = false
-                        deviceCode = nil
-                        userCode = nil
-                        verificationURL = nil
-                        isAuthenticated = true
-                        fetchUserProfile()
-                        return
-                    }
-                } catch AuthError.pollingExpired {
-                    isPolling = false
-                    deviceCode = nil
-                    return
-                } catch {
-                    // authorization_pending — keep polling
-                }
-            }
-        }
-    }
-
-    private func pollForToken() async throws -> Bool {
-        guard let dc = deviceCode else { return false }
-
-        let body = "grant_type=urn:ietf:params:oauth:grant-type:device_code&client_id=\(Constants.clientID)&device_code=\(dc)"
-
-        var request = URLRequest(url: URL(string: Constants.tokenURL)!)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = body.data(using: .utf8)
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
-
-        if let error = json["error"] as? String {
-            if error == "authorization_pending" {
-                return false
-            } else if error == "expired_token" || error == "authorization_declined" {
-                throw AuthError.pollingExpired
-            }
-            return false
-        }
-
         guard let at = json["access_token"] as? String,
               let rt = json["refresh_token"] as? String,
               let expiresIn = json["expires_in"] as? Int else {
-            return false
+            let httpStatus = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let errorDesc = json["error_description"] as? String ?? json["error"] as? String ?? "Unknown error"
+            throw AuthError.tokenExchangeFailed("HTTP \(httpStatus): \(errorDesc)")
         }
 
         accessToken = at
         refreshToken = rt
         tokenExpiry = Date().addingTimeInterval(TimeInterval(expiresIn))
+        codeVerifier = nil
         saveTokensToKeychain()
-        return true
+    }
+
+    // MARK: - PKCE Helpers
+
+    private func generateCodeVerifier() -> String {
+        var buffer = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer)
+        return Data(buffer).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    private func generateCodeChallenge(from verifier: String) -> String {
+        let data = Data(verifier.utf8)
+        let hash = SHA256.hash(data: data)
+        return Data(hash).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 
     // MARK: - Token Management
@@ -174,26 +190,15 @@ final class AuthService: ObservableObject {
     }
 
     func signOut() {
-        pollingTask?.cancel()
         accessToken = nil
         refreshToken = nil
         tokenExpiry = nil
         isAuthenticated = false
         userDisplayName = nil
         userEmail = nil
-        deviceCode = nil
-        userCode = nil
         deleteFromKeychain(key: Constants.keychainAccessToken)
         deleteFromKeychain(key: Constants.keychainRefreshToken)
         deleteFromKeychain(key: Constants.keychainTokenExpiry)
-    }
-
-    func cancelDeviceCodeFlow() {
-        pollingTask?.cancel()
-        isPolling = false
-        deviceCode = nil
-        userCode = nil
-        verificationURL = nil
     }
 
     // MARK: - User Profile
@@ -276,17 +281,15 @@ final class AuthService: ObservableObject {
 
 enum AuthError: LocalizedError {
     case notAuthenticated
-    case deviceCodeFailed
-    case deviceCodeFailedDetail(String)
-    case pollingExpired
+    case noAuthCode
+    case tokenExchangeFailed(String)
     case unknown
 
     var errorDescription: String? {
         switch self {
         case .notAuthenticated: return "Not authenticated. Please sign in."
-        case .deviceCodeFailed: return "Failed to get device code from Microsoft."
-        case .deviceCodeFailedDetail(let detail): return "Device code error: \(detail)"
-        case .pollingExpired: return "Sign-in timed out. Please try again."
+        case .noAuthCode: return "No authorization code received."
+        case .tokenExchangeFailed(let detail): return "Token exchange failed: \(detail)"
         case .unknown: return "An unknown authentication error occurred."
         }
     }

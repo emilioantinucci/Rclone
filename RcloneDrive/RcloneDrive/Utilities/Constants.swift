@@ -5,7 +5,8 @@ enum Constants {
     static let clientID = "b15665d9-eda6-4092-8539-0eec376afd59"
     static let authority = "https://login.microsoftonline.com/common"
     static let tokenURL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-    static let deviceCodeURL = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
+    static let redirectURI = "msauth.com.rclonedrive.app://auth"
+    static let callbackScheme = "msauth.com.rclonedrive.app"
 
     // MARK: - Microsoft Graph API
     static let graphBaseURL = "https://graph.microsoft.com/v1.0"
