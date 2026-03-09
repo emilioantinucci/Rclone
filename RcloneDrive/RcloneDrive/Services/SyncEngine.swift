@@ -90,8 +90,7 @@ final class SyncEngine: ObservableObject {
     }
 
     private func processRemoteChange(item: DriveItem, config: SyncConfiguration, context: ModelContext) async throws {
-        let descriptor = FetchDescriptor<SyncRecord>(predicate: #Predicate { $0.itemId == item.id })
-        let existingRecords = try context.fetch(descriptor)
+        let existingRecords = try context.fetch(FetchDescriptor<SyncRecord>()).filter { $0.itemId == item.id }
 
         if let existing = existingRecords.first {
             // Item exists locally - check for conflict
