@@ -402,7 +402,7 @@
 		};
 /* End XCConfigurationList section */
 
-/* No external package dependencies — pure Swift implementation */
+/* No external package dependencies - pure Swift implementation */
 
 	};
 	rootObject = P10001 /* Project object */;
