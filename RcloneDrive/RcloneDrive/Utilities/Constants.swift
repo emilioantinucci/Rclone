@@ -1,15 +1,16 @@
 import Foundation
 
 enum Constants {
-    // MARK: - Microsoft App Registration
-    // Replace with your own Client ID from Microsoft Entra (Azure AD) App Registration
-    static let clientID = "YOUR_CLIENT_ID_HERE"
-    static let redirectURI = "msauth.com.rclonedrive.app://auth"
+    // MARK: - Microsoft App Registration (rclone's public Client ID)
+    static let clientID = "b15665d9-eda6-4092-8539-0eec376afd59"
     static let authority = "https://login.microsoftonline.com/common"
+    static let tokenURL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    static let deviceCodeURL = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
 
     // MARK: - Microsoft Graph API
     static let graphBaseURL = "https://graph.microsoft.com/v1.0"
     static let scopes = ["Files.ReadWrite.All", "User.Read", "offline_access"]
+    static let scopeString = "Files.ReadWrite.All User.Read offline_access"
 
     // MARK: - Transfer Settings
     static let smallFileThreshold: Int64 = 4 * 1024 * 1024 // 4 MB
@@ -26,4 +27,9 @@ enum Constants {
     // MARK: - Background Tasks
     static let syncTaskIdentifier = "com.rclonedrive.app.sync"
     static let photoBackupTaskIdentifier = "com.rclonedrive.app.photobackup"
+
+    // MARK: - Keychain
+    static let keychainAccessToken = "com.rclonedrive.accessToken"
+    static let keychainRefreshToken = "com.rclonedrive.refreshToken"
+    static let keychainTokenExpiry = "com.rclonedrive.tokenExpiry"
 }

@@ -4,7 +4,6 @@ import SwiftUI
 @MainActor
 final class AuthViewModel: ObservableObject {
     @Published var errorMessage: String?
-    @Published var isSigningIn = false
 
     let authService: AuthService
 
@@ -12,21 +11,31 @@ final class AuthViewModel: ObservableObject {
         self.authService = authService
     }
 
-    func signIn() {
-        isSigningIn = true
+    func startSignIn() {
         errorMessage = nil
-
         Task {
             do {
-                try await authService.signIn()
+                try await authService.requestDeviceCode()
             } catch {
                 errorMessage = error.localizedDescription
             }
-            isSigningIn = false
         }
     }
 
-    func signOut() {
-        authService.signOut()
+    func cancel() {
+        authService.cancelDeviceCodeFlow()
+    }
+
+    func copyCode() {
+        if let code = authService.userCode {
+            UIPasteboard.general.string = code
+        }
+    }
+
+    func openVerificationURL() {
+        if let urlString = authService.verificationURL,
+           let url = URL(string: urlString) {
+            UIApplication.shared.open(url)
+        }
     }
 }

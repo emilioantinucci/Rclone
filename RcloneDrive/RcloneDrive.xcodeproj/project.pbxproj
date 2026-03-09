@@ -178,7 +178,6 @@
 			);
 			name = RcloneDrive;
 			packageProductDependencies = (
-				G10001 /* MSAL */,
 			);
 			productName = RcloneDrive;
 			productReference = B10030 /* RcloneDrive.app */;
@@ -209,7 +208,6 @@
 			);
 			mainGroup = D10001;
 			packageReferences = (
-				H10001 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 			);
 			productRefGroup = D10010 /* Products */;
 			projectDirPath = "";
@@ -400,24 +398,7 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		H10001 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/AzureAD/microsoft-authentication-library-for-objc";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.3.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		G10001 /* MSAL */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = H10001;
-			productName = MSAL;
-		};
-/* End XCSwiftPackageProductDependency section */
+/* No external package dependencies — pure Swift implementation */
 
 	};
 	rootObject = P10001 /* Project object */;

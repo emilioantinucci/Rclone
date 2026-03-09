@@ -13,24 +13,6 @@
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
 
-    <!-- MSAL URL Scheme for redirect -->
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>msauth.com.rclonedrive.app</string>
-            </array>
-        </dict>
-    </array>
-
-    <!-- Allow MSAL to query Microsoft Authenticator -->
-    <key>LSApplicationQueriesSchemes</key>
-    <array>
-        <string>msauthv2</string>
-        <string>msauthv3</string>
-    </array>
-
     <!-- Photo Library Access -->
     <key>NSPhotoLibraryUsageDescription</key>
     <string>RcloneDrive needs access to your photo library to backup photos and videos to OneDrive.</string>
@@ -42,12 +24,6 @@
     <array>
         <string>com.rclonedrive.app.sync</string>
         <string>com.rclonedrive.app.photobackup</string>
-    </array>
-
-    <!-- Keychain Sharing for MSAL token cache -->
-    <key>keychain-access-groups</key>
-    <array>
-        <string>com.microsoft.adalcache</string>
     </array>
 </dict>
 </plist>
