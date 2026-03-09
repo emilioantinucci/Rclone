@@ -17,6 +17,19 @@
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
 
+    <!-- Allow HTTP for localhost OAuth redirect -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>localhost</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+
     <!-- Photo Library Access -->
     <key>NSPhotoLibraryUsageDescription</key>
     <string>RcloneDrive needs access to your photo library to backup photos and videos to OneDrive.</string>

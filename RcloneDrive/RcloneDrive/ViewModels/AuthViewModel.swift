@@ -13,14 +13,20 @@ final class AuthViewModel: ObservableObject {
 
     func startSignIn() {
         errorMessage = nil
+        authService.startSignIn()
+    }
+
+    func handleCallback(url: URL) {
         Task {
             do {
-                try await authService.signIn()
-            } catch let error as NSError where error.domain == "com.apple.AuthenticationServices.WebAuthenticationSession" && error.code == 1 {
-                // User cancelled — not an error
+                try await authService.handleAuthCallback(url: url)
             } catch {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    func cancel() {
+        authService.cancelSignIn()
     }
 }

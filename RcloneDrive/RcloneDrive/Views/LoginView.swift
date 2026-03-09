@@ -25,29 +25,21 @@ struct LoginView: View {
             Spacer()
 
             // Sign-in button
-            VStack(spacing: 16) {
-                Button(action: { viewModel.startSignIn() }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "person.badge.key.fill")
-                        Text("Sign in with Microsoft")
-                            .fontWeight(.semibold)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.blue)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            Button(action: { viewModel.startSignIn() }) {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.badge.key.fill")
+                    Text("Sign in with Microsoft")
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
-                .disabled(viewModel.authService.isSigningIn)
-                .padding(.horizontal, 32)
-
-                if viewModel.authService.isSigningIn {
-                    ProgressView("Signing in...")
-                        .font(.caption)
-                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(.blue)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
+            .padding(.horizontal, 32)
 
             if let error = viewModel.errorMessage {
                 Text(error)
@@ -60,6 +52,22 @@ struct LoginView: View {
 
             Spacer()
                 .frame(height: 40)
+        }
+        .sheet(isPresented: $viewModel.authService.showSignInWeb) {
+            NavigationStack {
+                if let authURL = viewModel.authService.authURL {
+                    WebAuthView(url: authURL) { callbackURL in
+                        viewModel.handleCallback(url: callbackURL)
+                    }
+                    .navigationTitle("Sign in")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { viewModel.cancel() }
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -1,17 +1,17 @@
 import Foundation
-import AuthenticationServices
 import Security
 import CryptoKit
 
 /// Authentication service using OAuth2 Authorization Code Flow with PKCE.
-/// Uses ASWebAuthenticationSession for the browser-based sign-in.
+/// Uses rclone's registered client ID and redirect URI (http://localhost:53682/).
 @MainActor
-final class AuthService: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
+final class AuthService: ObservableObject {
     @Published var isAuthenticated = false
     @Published var userDisplayName: String?
     @Published var userEmail: String?
-    @Published var isSigningIn = false
+    @Published var showSignInWeb = false
 
+    private(set) var authURL: URL?
     private var accessToken: String?
     private var refreshToken: String?
     private var tokenExpiry: Date?
@@ -19,8 +19,7 @@ final class AuthService: NSObject, ObservableObject, ASWebAuthenticationPresenta
     // PKCE
     private var codeVerifier: String?
 
-    override init() {
-        super.init()
+    init() {
         loadTokensFromKeychain()
         if refreshToken != nil {
             isAuthenticated = true
@@ -28,74 +27,66 @@ final class AuthService: NSObject, ObservableObject, ASWebAuthenticationPresenta
         }
     }
 
-    // MARK: - ASWebAuthenticationPresentationContextProviding
-
-    nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        MainActor.assumeIsolated {
-            UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap { $0.windows }
-                .first { $0.isKeyWindow } ?? ASPresentationAnchor()
-        }
-    }
-
     // MARK: - Authorization Code Flow with PKCE
 
-    func signIn() async throws {
-        isSigningIn = true
-        defer { isSigningIn = false }
-
-        // Generate PKCE code verifier and challenge
+    /// Prepares the auth URL and signals the UI to present the web view
+    func startSignIn() {
         let verifier = generateCodeVerifier()
         codeVerifier = verifier
         let challenge = generateCodeChallenge(from: verifier)
 
-        // Build authorization URL
-        let redirectURI = Constants.redirectURI
-        let scope = Constants.scopeString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let authURL = URL(string: "\(Constants.authority)/oauth2/v2.0/authorize?client_id=\(Constants.clientID)&response_type=code&redirect_uri=\(redirectURI.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&scope=\(scope)&code_challenge=\(challenge)&code_challenge_method=S256")!
+        let redirectEncoded = Constants.redirectURI.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let scopeEncoded = Constants.scopeString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
 
-        // Present browser for sign-in
-        let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
-            let session = ASWebAuthenticationSession(
-                url: authURL,
-                callbackURLScheme: Constants.callbackScheme
-            ) { url, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let url = url {
-                    continuation.resume(returning: url)
-                } else {
-                    continuation.resume(throwing: AuthError.unknown)
-                }
-            }
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
-            session.start()
-        }
+        let urlString = "\(Constants.authority)/oauth2/v2.0/authorize"
+            + "?client_id=\(Constants.clientID)"
+            + "&response_type=code"
+            + "&redirect_uri=\(redirectEncoded)"
+            + "&scope=\(scopeEncoded)"
+            + "&code_challenge=\(challenge)"
+            + "&code_challenge_method=S256"
 
-        // Extract authorization code from callback URL
-        guard let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
+        authURL = URL(string: urlString)
+        showSignInWeb = true
+    }
+
+    /// Called by the web view when it intercepts the redirect with the auth code
+    func handleAuthCallback(url: URL) async throws {
+        showSignInWeb = false
+
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+            if let errorDesc = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "error_description" })?.value {
+                throw AuthError.authFailed(errorDesc)
+            }
             throw AuthError.noAuthCode
         }
 
-        // Exchange code for tokens
-        try await exchangeCodeForTokens(code: code, redirectURI: redirectURI)
+        try await exchangeCodeForTokens(code: code)
         isAuthenticated = true
         fetchUserProfile()
     }
 
-    private func exchangeCodeForTokens(code: String, redirectURI: String) async throws {
+    func cancelSignIn() {
+        showSignInWeb = false
+        authURL = nil
+        codeVerifier = nil
+    }
+
+    private func exchangeCodeForTokens(code: String) async throws {
         guard let verifier = codeVerifier else { throw AuthError.unknown }
+
+        let redirectEncoded = Constants.redirectURI.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let scopeEncoded = Constants.scopeString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
 
         let body = [
             "grant_type=authorization_code",
             "client_id=\(Constants.clientID)",
             "code=\(code)",
-            "redirect_uri=\(redirectURI.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")",
+            "redirect_uri=\(redirectEncoded)",
             "code_verifier=\(verifier)",
-            "scope=\(Constants.scopeString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            "scope=\(scopeEncoded)"
         ].joined(separator: "&")
 
         var request = URLRequest(url: URL(string: Constants.tokenURL)!)
@@ -282,6 +273,7 @@ final class AuthService: NSObject, ObservableObject, ASWebAuthenticationPresenta
 enum AuthError: LocalizedError {
     case notAuthenticated
     case noAuthCode
+    case authFailed(String)
     case tokenExchangeFailed(String)
     case unknown
 
@@ -289,6 +281,7 @@ enum AuthError: LocalizedError {
         switch self {
         case .notAuthenticated: return "Not authenticated. Please sign in."
         case .noAuthCode: return "No authorization code received."
+        case .authFailed(let detail): return "Authentication failed: \(detail)"
         case .tokenExchangeFailed(let detail): return "Token exchange failed: \(detail)"
         case .unknown: return "An unknown authentication error occurred."
         }

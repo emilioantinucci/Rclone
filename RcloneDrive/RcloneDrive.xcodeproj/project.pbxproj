@@ -31,6 +31,7 @@
 		A10022 /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10022; };
 		A10023 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10023; };
 		A10024 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10024; };
+		A10025 /* WebAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10026; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +60,7 @@
 		B10023 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B10024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10025 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B10026 /* WebAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthView.swift; sourceTree = "<group>"; };
 		B10030 /* RcloneDrive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RcloneDrive.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -140,6 +142,7 @@
 				B10014 /* TransferListView.swift */,
 				B10021 /* PhotoBackupView.swift */,
 				B10023 /* SettingsView.swift */,
+				B10026 /* WebAuthView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -257,6 +260,7 @@
 				A10021 /* PhotoBackupView.swift in Sources */,
 				A10022 /* CacheManager.swift in Sources */,
 				A10023 /* SettingsView.swift in Sources */,
+				A10025 /* WebAuthView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
